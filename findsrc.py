@@ -7,9 +7,26 @@ import argparse
 import re
 import cchardet
 import colorama
+import cProfile
+import io
+import pstats
 
 
 DEFAULT_EXTS = [".h", ".hpp", ".cpp", ".cxx", ".c", ".inl"]
+
+
+class MyProfile():
+
+    def __init__(self):
+        self.pr = cProfile.Profile()
+        self.pr.enable()
+
+    def __del__(self):
+        self.pr.disable()
+        s = io.StringIO()
+        ps = pstats.Stats(self.pr, stream=s).sort_stats("cumulative")
+        ps.print_stats()
+        print(s.getvalue())
 
 
 def _can_find(file, exts):
@@ -41,6 +58,11 @@ def _setup_args():
         metavar="<path>",
         help="The path to find, default to current directory")
     parser.add_argument(
+        "-j", "--jobs",
+        metavar="<N>",
+        type=int,
+        help="Number of threads to run")
+    parser.add_argument(
         "pattern",
         metavar="<pattern>",
         help="The pattern to find")
@@ -48,48 +70,6 @@ def _setup_args():
     args = parser.parse_args()
 
     return args
-
-
-class FindResult:
-
-    def __init__(self, content, line_no):
-        self.before = []
-        self.line = content
-        self.line_no = line_no
-        self.ranges = []
-        self.after = []
-
-    def addRange(self, start, end):
-        self.ranges.append((start, end))
-
-    def isValid(self):
-        return len(self.ranges) > 0
-
-    def print(self, color_output=True):
-        line_no = self.line_no - len(self.before)
-        for b in self.before:
-            print("  {}:{}".format(line_no, b), end="")
-            line_no += 1
-
-        print("  {}:{}".format(
-            self.line_no,
-            self._pretty_content(color_output)),
-            end="")
-
-        line_no = self.line_no + 1
-        for a in self.after:
-            print("  {}:{}".format(line_no, a), end="")
-            line_no += 1
-
-    def _pretty_content(self, color_output):
-        if not color_output:
-            return self.line
-
-        content = self.line
-        for start, end in reversed(self.ranges):
-            content = content[:end] + "\033[m" + content[end:]
-            content = content[:start] + "\033[1;31m" + content[start:]
-        return content
 
 
 def _file_encoding(path):
@@ -119,21 +99,32 @@ def find_src(src, pattern: re.Pattern, lock: Lock, color_output=True):
         f = open(src, "r", encoding=_file_encoding(src))
         line_no = 1
         for line in f:
-            fr = FindResult(line, line_no)
             line_no += 1
-            for m in pattern.finditer(line):
-                fr.addRange(m.start(), m.end())
-            if fr.isValid():
-                result.append(fr)
+            if color_output:
+                content = ""
+                last_pos = 0
+                # sub is too slow
+                for m in pattern.finditer(line):
+                    content += line[last_pos:m.start()] + "\033[1;31m" + \
+                        line[m.start():m.end()] + "\033[m"
+                    last_pos = m.end()
+                if content:
+                    if last_pos < len(line):
+                        content += line[last_pos:]
+                    result.append("  {}: {}".format(line_no, content))
+            elif pattern.search(line):
+                result.append("  {}: {}".format(line_no, line))
         f.close()
 
         if result:
-            lock.acquire()
+            if lock:
+                lock.acquire()
             print(src)
             for r in result:
-                r.print(color_output)
+                print(r, end="")
             print("")
-            lock.release()
+            if lock:
+                lock.release()
 
     except UnicodeDecodeError:
         print("Unknown encoding for:", src)
@@ -148,6 +139,7 @@ def _is_stdout_support_color():
 
 
 def main():
+    #profile = MyProfile()
     args = _setup_args()
     target_dir = args.path or os.getcwd()
     exts = _parse_exts(args.extension)
@@ -156,16 +148,25 @@ def main():
     if not _is_stdout_support_color():
         colorama.init()
 
-    executor = ThreadPoolExecutor()
-    lock = Lock()
+    if args.jobs and args.jobs > 1:
+        executor = ThreadPoolExecutor(args.jobs)
+        lock = Lock()
+    else:
+        executor = None
+        lock = None
 
     for root, _, files in os.walk(target_dir):
         for file in files:
             if _can_find(file, exts):
                 full_path = os.path.join(root, file)
-                executor.submit(
-                    find_src,
-                    full_path, pattern, lock)
+                if executor:
+                    executor.submit(
+                        find_src,
+                        full_path, pattern, lock)
+                else:
+                    find_src(full_path, pattern, lock)
+
+    #del profile
 
 
 if __name__ == "__main__":
