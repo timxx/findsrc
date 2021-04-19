@@ -30,8 +30,10 @@ class MyProfile():
 
 
 def _can_find(file, exts):
-    ext = os.path.splitext(file)[1]
-    return ext and ext in exts
+    for ext in exts:
+        if file.endswith(ext):
+            return True
+    return False
 
 
 def _parse_exts(exts):
