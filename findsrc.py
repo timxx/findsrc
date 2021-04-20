@@ -30,13 +30,6 @@ class MyProfile():
         print(s.getvalue())
 
 
-def _can_find(file, exts):
-    for ext in exts:
-        if file.endswith(ext):
-            return True
-    return False
-
-
 def _parse_exts(exts):
     if not exts:
         return DEFAULT_EXTS
@@ -65,6 +58,10 @@ def _setup_args():
         metavar="<N>",
         type=int,
         help="Number of threads to run")
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Enable profile")
     parser.add_argument(
         "pattern",
         metavar="<pattern>",
@@ -167,9 +164,20 @@ def _is_regexp(pattern):
     return False
 
 
+def _scan_files(path):
+    for entry in os.scandir(path):
+        if entry.is_dir(follow_symlinks=False):
+            yield from _scan_files(entry.path)
+        else:
+            yield entry
+
+
 def main():
-    #profile = MyProfile()
     args = _setup_args()
+
+    if args.profile:
+        profile = MyProfile()
+
     target_dir = args.path or os.getcwd()
     exts = _parse_exts(args.extension)
     pattern = re.compile(args.pattern) \
@@ -186,18 +194,19 @@ def main():
         executor = None
         lock = None
 
-    for root, _, files in os.walk(target_dir):
-        for file in files:
-            if _can_find(file, exts):
-                full_path = os.path.join(root, file)
+    for entry in _scan_files(target_dir):
+        for ext in exts:
+            if entry.name.endswith(ext):
                 if executor:
                     executor.submit(
                         find_src,
-                        full_path, pattern, lock)
+                        entry.path, pattern, lock)
                 else:
-                    find_src(full_path, pattern, lock)
+                    find_src(entry.path, pattern, lock)
+                break
 
-    #del profile
+    if args.profile:
+        del profile
 
 
 if __name__ == "__main__":
