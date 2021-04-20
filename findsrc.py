@@ -6,7 +6,6 @@ from typing import Union
 import os
 import argparse
 import re
-import cchardet
 import colorama
 import cProfile
 import io
@@ -72,77 +71,88 @@ def _setup_args():
     return args
 
 
-def _file_encoding(path):
-    with open(path, "rb") as f:
-        bom = f.read(4)
-        if len(bom) > 3:
-            if bom[0:3] == b"\xEF\xBB\xBF":
-                return "utf-8"
-        if len(bom) > 2:
-            if bom[0:2] == b"\xFF\xFE":
-                return "utf-16le"
-            if bom[0:2] == b"\xFE\xFF":
-                return "utf-16be"
-
-        f.seek(0)
-        result = cchardet.detect(f.read())
-        enc = result.get("encoding")
-        if enc:
-            return enc
-
-    return "utf-8"
-
-
 def find_src(src, pattern: Union[re.Pattern, str], lock: Lock, color_output=True):
-    try:
-        result = []
-        f = open(src, "r", encoding=_file_encoding(src))
-        line_no = 1
+    f = open(src, "rb")
+    data = f.read()
+    f.close()
 
-        # call function will slow down the performance
-        # so use if else LoL
-        is_regexp = isinstance(pattern, re.Pattern)
-        if color_output:
-            _color_text = lambda text, l, s, e: text[l:s] + "\033[1;31m" + text[s:e] + "\033[m"
-            for line in f:
-                line_no += 1
-                content = ""
-                last_pos = 0
-                if is_regexp:
-                    # sub is too slow
-                    for m in pattern.finditer(line):
-                        content += _color_text(line, last_pos, m.start(), m.end())
-                        last_pos = m.end()
-                else:
-                    start = line.find(pattern)
-                    while start != -1:
-                        end = start + len(pattern)
-                        content += _color_text(line, last_pos, start, end)
-                        start = line.find(pattern, end)
-                        last_pos = end
-                if content:
-                    if last_pos < len(line):
-                        content += line[last_pos:]
-                    result.append("  {}: {}".format(line_no, content))
-        else:
-            for line in f:
-                line_no += 1
-                if (is_regexp and pattern.search(line)) or (pattern in line):
-                    result.append("  {}: {}".format(line_no, line))
-        f.close()
+    encoding = None
+    if len(data) > 4:
+        if data[0:4] == b"\x00\x00\xFE\xFF":
+            encoding = "utf-32be"
+        elif data[0:4] == b"\xFF\xFE\x00\x00":
+            encoding = "utf-32le"
+    if encoding is None and len(data) > 3:
+        if data[0:3] == b"\xEF\xBB\xBF":
+            encoding = "utf-8"
+    if encoding is None and len(data) > 2:
+        if data[0:2] == b"\xFF\xFE":
+            encoding = "utf-16le"
+        elif data[0:2] == b"\xFE\xFF":
+            encoding = "utf-16be"
 
-        if result:
-            if lock:
-                lock.acquire()
-            print(src)
-            for r in result:
-                print(r, end="")
-            print("")
-            if lock:
-                lock.release()
+    encodings = ["gb18030", "utf-8", "iso-8859-1"]
+    if encoding:
+        if encoding in encodings:
+            encodings.remove(encoding)
+        encodings.insert(0, encoding)
 
-    except UnicodeDecodeError:
+    lines = []
+    can_decode = False
+    for encoding in encodings:
+        try:
+            lines = data.decode(encoding).splitlines(True)
+            can_decode = True
+            break
+        except UnicodeDecodeError:
+            pass
+
+    if not can_decode:
         print("Unknown encoding for:", src)
+        return
+
+    result = []
+    line_no = 1
+    # call function will slow down the performance
+    # so use if else LoL
+    is_regexp = isinstance(pattern, re.Pattern)
+    if color_output:
+        _color_text = lambda text, l, s, e: text[l:s] + "\033[1;31m" + text[s:e] + "\033[m"
+        for line in lines:
+            line_no += 1
+            content = ""
+            last_pos = 0
+            if is_regexp:
+                # sub is too slow
+                for m in pattern.finditer(line):
+                    content += _color_text(line, last_pos, m.start(), m.end())
+                    last_pos = m.end()
+            else:
+                start = line.find(pattern)
+                while start != -1:
+                    end = start + len(pattern)
+                    content += _color_text(line, last_pos, start, end)
+                    start = line.find(pattern, end)
+                    last_pos = end
+            if content:
+                if last_pos < len(line):
+                    content += line[last_pos:]
+                result.append("  {}: {}".format(line_no, content))
+    else:
+        for line in lines:
+            line_no += 1
+            if (is_regexp and pattern.search(line)) or (pattern in line):
+                result.append("  {}: {}".format(line_no, line))
+
+    if result:
+        if lock:
+            lock.acquire()
+        print(src)
+        for r in result:
+            print(r, end="")
+        print("")
+        if lock:
+            lock.release()
 
 
 def _is_stdout_support_color():
