@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from typing import Union
 import os
 import argparse
 import re
@@ -95,27 +96,42 @@ def _file_encoding(path):
     return "utf-8"
 
 
-def find_src(src, pattern: re.Pattern, lock: Lock, color_output=True):
+def find_src(src, pattern: Union[re.Pattern, str], lock: Lock, color_output=True):
     try:
         result = []
         f = open(src, "r", encoding=_file_encoding(src))
         line_no = 1
-        for line in f:
-            line_no += 1
-            if color_output:
+
+        # call function will slow down the performance
+        # so use if else LoL
+        is_regexp = isinstance(pattern, re.Pattern)
+        if color_output:
+            _color_text = lambda text, l, s, e: text[l:s] + "\033[1;31m" + text[s:e] + "\033[m"
+            for line in f:
+                line_no += 1
                 content = ""
                 last_pos = 0
-                # sub is too slow
-                for m in pattern.finditer(line):
-                    content += line[last_pos:m.start()] + "\033[1;31m" + \
-                        line[m.start():m.end()] + "\033[m"
-                    last_pos = m.end()
+                if is_regexp:
+                    # sub is too slow
+                    for m in pattern.finditer(line):
+                        content += _color_text(line, last_pos, m.start(), m.end())
+                        last_pos = m.end()
+                else:
+                    start = line.find(pattern)
+                    while start != -1:
+                        end = start + len(pattern)
+                        content += _color_text(line, last_pos, start, end)
+                        start = line.find(pattern, end)
+                        last_pos = end
                 if content:
                     if last_pos < len(line):
                         content += line[last_pos:]
                     result.append("  {}: {}".format(line_no, content))
-            elif pattern.search(line):
-                result.append("  {}: {}".format(line_no, line))
+        else:
+            for line in f:
+                line_no += 1
+                if (is_regexp and pattern.search(line)) or (pattern in line):
+                    result.append("  {}: {}".format(line_no, line))
         f.close()
 
         if result:
@@ -140,12 +156,25 @@ def _is_stdout_support_color():
         return True
 
 
+def _is_regexp(pattern):
+    metachars = r".^$*+?{}[]\|()"
+
+    # Not consider the escape case LoL
+    for c in pattern:
+        if c in metachars:
+            return True
+
+    return False
+
+
 def main():
     #profile = MyProfile()
     args = _setup_args()
     target_dir = args.path or os.getcwd()
     exts = _parse_exts(args.extension)
-    pattern = re.compile(args.pattern)
+    pattern = re.compile(args.pattern) \
+        if _is_regexp(args.pattern) \
+        else args.pattern
 
     if not _is_stdout_support_color():
         colorama.init()
