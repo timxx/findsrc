@@ -52,6 +52,11 @@ def _setup_args():
         metavar="<path>",
         help="The path to find, default to current directory")
     parser.add_argument(
+        "-i", "--ignore-case",
+        action="store_true",
+        help="Case insensitive"
+    )
+    parser.add_argument(
         "-j", "--jobs",
         metavar="<N>",
         type=int,
@@ -177,6 +182,15 @@ def _is_regexp(pattern):
     return False
 
 
+def _make_pattern(args):
+    if args.ignore_case or _is_regexp(args.pattern):
+        flags = 0
+        if args.ignore_case:
+            flags |= re.IGNORECASE
+        return re.compile(args.pattern, flags)
+    return args.pattern
+
+
 def _scan_files(path):
     for entry in os.scandir(path):
         if entry.is_dir(follow_symlinks=False):
@@ -193,9 +207,7 @@ def main():
 
     target_dir = args.path or os.getcwd()
     exts = _parse_exts(args.extension)
-    pattern = re.compile(args.pattern) \
-        if _is_regexp(args.pattern) \
-        else args.pattern
+    pattern = _make_pattern(args)
 
     if not _is_stdout_support_color():
         colorama.init()
