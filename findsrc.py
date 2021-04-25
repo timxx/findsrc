@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
 from typing import Union
+import multiprocessing as mp
 import os
 import argparse
 import re
@@ -71,7 +70,11 @@ def _setup_args():
     return args
 
 
-def find_src(src, pattern: Union[re.Pattern, str], lock: Lock, color_output=True):
+# must be global
+print_lock = None
+
+
+def find_src(src, pattern: Union[re.Pattern, str], color_output=True):
     f = open(src, "rb")
     data = f.read()
     f.close()
@@ -145,14 +148,14 @@ def find_src(src, pattern: Union[re.Pattern, str], lock: Lock, color_output=True
                 result.append("  {}: {}".format(line_no, line))
 
     if result:
-        if lock:
-            lock.acquire()
+        if print_lock:
+            print_lock.acquire()
         print(src)
         for r in result:
             print(r, end="")
         print("")
-        if lock:
-            lock.release()
+        if print_lock:
+            print_lock.release()
 
 
 def _is_stdout_support_color():
@@ -197,26 +200,22 @@ def main():
     if not _is_stdout_support_color():
         colorama.init()
 
-    if args.jobs and args.jobs > 1:
-        executor = ThreadPoolExecutor(args.jobs)
-        lock = Lock()
+    if args.jobs is None or args.jobs > 1:
+        global print_lock
+        print_lock = mp.Lock()
+        executor = mp.Pool(args.jobs)
     else:
         executor = None
-        lock = None
 
     for entry in _scan_files(target_dir):
         for ext in exts:
             if entry.name.endswith(ext):
                 if executor:
-                    executor.submit(
-                        find_src,
-                        entry.path, pattern, lock)
+                    executor.apply_async(
+                        find_src, args=(entry.path, pattern))
                 else:
-                    find_src(entry.path, pattern, lock)
+                    find_src(entry.path, pattern)
                 break
-
-    if args.profile:
-        del profile
 
 
 if __name__ == "__main__":
