@@ -11,7 +11,7 @@ import io
 import pstats
 
 
-DEFAULT_EXTS = [".h", ".hpp", ".cpp", ".cxx", ".c", ".inl"]
+DEFAULT_EXTS = [".h", ".cpp", ".hpp", ".cxx", ".c", ".cc", ".inl"]
 
 
 class MyProfile():
