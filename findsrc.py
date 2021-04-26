@@ -219,15 +219,24 @@ def main():
     else:
         executor = None
 
+    jobs = []
+    add_job = jobs.append
     for entry in _scan_files(target_dir):
         for ext in exts:
             if entry.name.endswith(ext):
                 if executor:
-                    executor.apply_async(
+                    job = executor.apply_async(
                         find_src, args=(entry.path, pattern))
+                    add_job(job)
                 else:
                     find_src(entry.path, pattern)
                 break
+
+    for job in jobs:
+        job.get()
+
+    if args.profile:
+        del profile
 
 
 if __name__ == "__main__":
