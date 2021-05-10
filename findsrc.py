@@ -62,6 +62,10 @@ def _setup_args():
         type=int,
         help="Number of threads to run")
     parser.add_argument(
+        "-n", "--name",
+        metavar="<name>",
+        help="Find by file name instead of file extension")
+    parser.add_argument(
         "--profile",
         action="store_true",
         help="Enable profile")
@@ -221,15 +225,32 @@ def main():
 
     jobs = []
     add_job = jobs.append
-    for entry in _scan_files(target_dir):
-        for ext in exts:
-            if entry.name.endswith(ext):
+
+    # if else for performance LoL
+    if args.name:
+        if os.name == "nt":
+            name = args.name.lower()
+            name_cmp = lambda n: n.lower() == name
+        else:
+            name_cmp = lambda n: n == args.name
+        for entry in _scan_files(target_dir):
+            if name_cmp(entry.name):
                 if executor:
                     job = executor.apply_async(
                         find_src, args=(entry.path, pattern))
                     add_job(job)
                 else:
                     find_src(entry.path, pattern)
+    else:
+        for entry in _scan_files(target_dir):
+            for ext in exts:
+                if entry.name.endswith(ext):
+                    if executor:
+                        job = executor.apply_async(
+                            find_src, args=(entry.path, pattern))
+                        add_job(job)
+                    else:
+                        find_src(entry.path, pattern)
                 break
 
     for job in jobs:
