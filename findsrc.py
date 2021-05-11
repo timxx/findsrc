@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 
-from typing import Union
 import multiprocessing as mp
 import os
 import argparse
 import re
-import cProfile
-import io
-import pstats
 
 
 DEFAULT_EXTS = [".h", ".cpp", ".hpp", ".cxx", ".c", ".cc", ".inl"]
@@ -16,11 +12,14 @@ DEFAULT_EXTS = [".h", ".cpp", ".hpp", ".cxx", ".c", ".cc", ".inl"]
 class MyProfile():
 
     def __init__(self):
+        import cProfile
         self.pr = cProfile.Profile()
         self.pr.enable()
 
     def __del__(self):
         self.pr.disable()
+        import io
+        import pstats
         s = io.StringIO()
         ps = pstats.Stats(self.pr, stream=s).sort_stats("cumulative")
         ps.print_stats()
@@ -82,7 +81,7 @@ def _setup_args():
 print_lock = None
 
 
-def find_src(src, pattern: Union[re.Pattern, str], color_output=True):
+def find_src(src, pattern, color_output=True):
     f = open(src, "rb")
     data = f.read()
     f.close()
