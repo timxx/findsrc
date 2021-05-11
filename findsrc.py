@@ -5,7 +5,6 @@ import multiprocessing as mp
 import os
 import argparse
 import re
-import colorama
 import cProfile
 import io
 import pstats
@@ -214,6 +213,7 @@ def main():
     pattern = _make_pattern(args)
 
     if not _is_stdout_support_color():
+        import colorama
         colorama.init()
 
     if args.jobs is None or args.jobs > 1:

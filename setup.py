@@ -23,7 +23,7 @@ setup(name="findsrc",
               "findsrc=findsrc:main",
           ]
       },
-      install_requires=["colorama"],
+      install_requires=["colorama;platform_system=='Windows'"],
       classifiers=[
           "Intended Audience :: Developers",
           "License :: OSI Approved :: Apache Software License",
