@@ -252,7 +252,7 @@ def main():
                         add_job(job)
                     else:
                         find_src(entry.path, pattern)
-                break
+                    break
 
     for job in jobs:
         job.get()
