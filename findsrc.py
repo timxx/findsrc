@@ -217,15 +217,17 @@ def main():
         import colorama
         colorama.init()
 
+    jobs = []
+    add_job = jobs.append
+
     if args.jobs is None or args.jobs > 1:
         global print_lock
         print_lock = mp.Lock()
         executor = mp.Pool(args.jobs)
+        do_find = lambda path, pattern: add_job(
+            executor.apply_async(find_src, args=(path, pattern)))
     else:
-        executor = None
-
-    jobs = []
-    add_job = jobs.append
+        do_find = lambda path, pattern: find_src(path, pattern)
 
     # if else for performance LoL
     if args.name:
@@ -236,22 +238,12 @@ def main():
             name_cmp = lambda n: n == args.name
         for entry in _scan_files(target_dir):
             if name_cmp(entry.name):
-                if executor:
-                    job = executor.apply_async(
-                        find_src, args=(entry.path, pattern))
-                    add_job(job)
-                else:
-                    find_src(entry.path, pattern)
+                do_find(entry.path, pattern)
     else:
         for entry in _scan_files(target_dir):
             for ext in exts:
                 if entry.name.endswith(ext):
-                    if executor:
-                        job = executor.apply_async(
-                            find_src, args=(entry.path, pattern))
-                        add_job(job)
-                    else:
-                        find_src(entry.path, pattern)
+                    do_find(entry.path, pattern)
                     break
 
     for job in jobs:
