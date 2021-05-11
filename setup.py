@@ -6,7 +6,7 @@ with open("README.md", "r") as f:
 
 
 setup(name="findsrc",
-      version="1.1.0",
+      version="1.1.1",
       author="Weitian Leung",
       author_email="weitianleung@gmail.com",
       description='Search tool for sources',
