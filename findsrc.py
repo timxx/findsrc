@@ -40,11 +40,18 @@ def _parse_exts(exts):
 
 def _setup_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "-e", "--extension",
         metavar="<ext>",
         action="append",
         help="Specify the file extension to find")
+    group.add_argument(
+        "-n", "--name",
+        metavar="<name>",
+        help="Find by file name instead of file extension")
+
     parser.add_argument(
         "-p", "--path",
         metavar="<path>",
@@ -52,17 +59,12 @@ def _setup_args():
     parser.add_argument(
         "-i", "--ignore-case",
         action="store_true",
-        help="Case insensitive"
-    )
+        help="Case insensitive")
     parser.add_argument(
         "-j", "--jobs",
         metavar="<N>",
         type=int,
-        help="Number of threads to run")
-    parser.add_argument(
-        "-n", "--name",
-        metavar="<name>",
-        help="Find by file name instead of file extension")
+        help="Number of jobs to run for finding")
     parser.add_argument(
         "--profile",
         action="store_true",
