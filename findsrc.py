@@ -124,7 +124,7 @@ def find_src(src, pattern, color_output=True):
         return
 
     result = []
-    line_no = 1
+    line_no = 0
     # call function will slow down the performance
     # so use if else LoL
     is_regexp = isinstance(pattern, re.Pattern)
