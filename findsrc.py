@@ -229,25 +229,28 @@ def main():
     else:
         do_find = lambda path, pattern: find_src(path, pattern)
 
-    # if else for performance LoL
-    if args.name:
-        if os.name == "nt":
-            name = args.name.lower()
-            name_cmp = lambda n: n.lower() == name
-        else:
-            name_cmp = lambda n: n == args.name
-        for entry in _scan_files(target_dir):
-            if name_cmp(entry.name):
-                do_find(entry.path, pattern)
-    else:
-        for entry in _scan_files(target_dir):
-            for ext in exts:
-                if entry.name.endswith(ext):
+    try:
+        # if else for performance LoL
+        if args.name:
+            if os.name == "nt":
+                name = args.name.lower()
+                name_cmp = lambda n: n.lower() == name
+            else:
+                name_cmp = lambda n: n == args.name
+            for entry in _scan_files(target_dir):
+                if name_cmp(entry.name):
                     do_find(entry.path, pattern)
-                    break
+        else:
+            for entry in _scan_files(target_dir):
+                for ext in exts:
+                    if entry.name.endswith(ext):
+                        do_find(entry.path, pattern)
+                        break
 
-    for job in jobs:
-        job.get()
+        for job in jobs:
+            job.get()
+    except KeyboardInterrupt:
+        os.kill(0, 9)
 
     if args.profile:
         del profile
