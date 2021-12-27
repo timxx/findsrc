@@ -79,10 +79,6 @@ def _setup_args():
     return args
 
 
-# must be global
-print_lock = None
-
-
 def find_src(src, pattern, color_output=True):
     f = open(src, "rb")
     data = f.read()
@@ -121,7 +117,7 @@ def find_src(src, pattern, color_output=True):
 
     if not can_decode:
         print("Unknown encoding for:", src)
-        return
+        return src, None
 
     result = []
     line_no = 0
@@ -156,15 +152,7 @@ def find_src(src, pattern, color_output=True):
             if (is_regexp and pattern.search(line)) or (pattern in line):
                 result.append("  {}: {}".format(line_no, line))
 
-    if result:
-        if print_lock:
-            print_lock.acquire()
-        print(src)
-        for r in result:
-            print(r, end="")
-        print("")
-        if print_lock:
-            print_lock.release()
+    return src, result
 
 
 def _is_stdout_support_color():
@@ -220,14 +208,12 @@ def main():
     jobs = []
     add_job = jobs.append
 
-    if args.jobs is None or args.jobs > 1:
-        global print_lock
-        print_lock = mp.Lock()
-        executor = mp.Pool(args.jobs)
-        do_find = lambda path, pattern: add_job(
-            executor.apply_async(find_src, args=(path, pattern)))
-    else:
-        do_find = lambda path, pattern: find_src(path, pattern)
+    if args.jobs is not None and args.jobs < 1:
+        args.jobs = 1
+
+    executor = mp.Pool(args.jobs)
+    do_find = lambda path, pattern: add_job(
+        executor.apply_async(find_src, args=(path, pattern)))
 
     try:
         # if else for performance LoL
@@ -248,7 +234,12 @@ def main():
                         break
 
         for job in jobs:
-            job.get()
+            src, result = job.get()
+            if result:
+                print(src)
+                for r in result:
+                    print(r, end="")
+                print("")
     except KeyboardInterrupt:
         os.kill(0, 9)
 
