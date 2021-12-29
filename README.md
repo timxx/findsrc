@@ -3,7 +3,7 @@
 ## Search tool for sources
 
 ### Usage
-`findsrc [-i] [-e ext] [-p path] [-j N] pattern`
+`findsrc [-h] [-e <ext> | -n <name>] [-p <path>] [-i] [-j <N>] [--profile] <pattern>`
 
 Most of the time just type `findsrc pattern` under you sources tree will do the works.
 
