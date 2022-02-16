@@ -197,7 +197,7 @@ def main():
     if args.profile:
         profile = MyProfile()
 
-    target_dir = os.path.realpath(args.path) or os.getcwd()
+    target_dir = os.path.realpath(args.path or os.getcwd())
     exts = _parse_exts(args.extension)
     pattern = _make_pattern(args)
 
